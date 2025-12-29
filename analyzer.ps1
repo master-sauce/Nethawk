@@ -8,7 +8,7 @@ if ($PIDs) {
     Write-Host ("-" * 80) -ForegroundColor Gray
     Write-Host
     
-    # Create a regex pattern to match lines ending in a Brave PID OR indented lines
+    
     $pattern = " ($($PIDs -join '|'))$|^^\s{4,}"
     NETSTAT.EXE -anob | Select-String -Pattern $pattern
     if ($null -eq $args[1]) {
@@ -20,5 +20,6 @@ if ($PIDs) {
     }
 
 }
+
 
 }
