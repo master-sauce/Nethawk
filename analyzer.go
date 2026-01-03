@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -210,17 +209,4 @@ func clearScreen() {
 
 	cmd.Stdout = os.Stdout
 	cmd.Run()
-}
-
-func init() {
-	// Hide console window on Windows when not running from command line
-	if runtime.GOOS == "windows" {
-		kernel32 := syscall.NewLazyDLL("kernel32.dll")
-		getConsoleWindow := kernel32.NewProc("GetConsoleWindow")
-		
-		hwnd, _, _ := getConsoleWindow.Call()
-		if hwnd != 0 {
-			// Console window exists, we're good
-		}
-	}
 }
