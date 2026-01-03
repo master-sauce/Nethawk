@@ -139,6 +139,11 @@ func isPublicIP(ipStr string) bool {
 		return false
 	}
 
+	// Filter out special addresses
+	if ipStr == "0.0.0.0" || ipStr == "255.255.255.255" {
+		return false
+	}
+
 	// Check if it's a private IP
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsMulticast() {
 		return false
