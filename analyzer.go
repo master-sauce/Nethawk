@@ -15,7 +15,7 @@ func main() {
 
 	//check args
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: program <process_name> [sleep_seconds] [-log logfile.txt]")
+		fmt.Println("Usage: program <process_name> [sleep_seconds] [-o logfile.txt]")
 		os.Exit(1)
 	}
 
@@ -29,7 +29,7 @@ func main() {
 
 	if (runtime.GOOS == "linux" || runtime.GOOS == "darwin") && os.Geteuid() != 0 {
 		fmt.Printf("This program requires root privileges on %s.\n", runtime.GOOS)
-		fmt.Println("Please run with: sudo ./program <process_name> [sleep_seconds] [-log logfile.txt]")
+		fmt.Println("Please run with: sudo ./program <process_name> [sleep_seconds] [-o logfile.txt]")
 		os.Exit(1)
 	}
 
@@ -40,7 +40,7 @@ func main() {
 
 	// Parse arguments
 	for i := 2; i < len(os.Args); i++ {
-		if os.Args[i] == "-log" && i+1 < len(os.Args) {
+		if os.Args[i] == "-o" && i+1 < len(os.Args) {
 			logFile = os.Args[i+1]
 			i++ // Skip next arg
 		} else {
