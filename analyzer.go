@@ -55,9 +55,13 @@ func main() {
 		// 'check' subcommand
 		checkCmd := flag.NewFlagSet("check", flag.ExitOnError)
 		logFile := checkCmd.String("logfile", "", "Log file to analyze (required).")
+		checkCmd.StringVar(logFile, "f", "", "Log file to analyze (required). (shorthand)")
 		outputFile := checkCmd.String("output", "", "File to save output to.")
+		checkCmd.StringVar(outputFile, "o", "", "File to save output to. (shorthand)")
 		ipInfoToken := checkCmd.String("token", "", "API token for ipinfo.io.")
+		checkCmd.StringVar(ipInfoToken, "t", "", "API token for ipinfo.io. (shorthand)")
 		abuseIPDBKey := checkCmd.String("abuseipdb", "", "API key for AbuseIPDB.")
+		checkCmd.StringVar(abuseIPDBKey, "a", "", "API key for AbuseIPDB. (shorthand)")
 		checkCmd.Parse(os.Args[2:])
 
 		if *logFile == "" {
@@ -71,8 +75,11 @@ func main() {
 		// 'monitor' subcommand
 		monitorCmd := flag.NewFlagSet("monitor", flag.ExitOnError)
 		processName := monitorCmd.String("process", "", "Process name to monitor (required).")
+		monitorCmd.StringVar(processName, "p", "", "Process name to monitor (required). (shorthand)")
 		outputFile := monitorCmd.String("output", "", "File to save output to.")
+		monitorCmd.StringVar(outputFile, "o", "", "File to save output to. (shorthand)")
 		sleepSeconds := monitorCmd.Int("sleep", 2, "Seconds to wait between updates.")
+		monitorCmd.IntVar(sleepSeconds, "s", 2, "Seconds to wait between updates. (shorthand)")
 		monitorCmd.Parse(os.Args[2:])
 
 		if *processName == "" {
@@ -90,18 +97,18 @@ func main() {
 		fmt.Println("  program monitor [flags]")
 		fmt.Println("\nIP Analyzer Mode (checks IPs in a log file):")
 		fmt.Println("  check")
-		fmt.Println("    --logfile <path>     (Required) Log file to analyze.")
-		fmt.Println("    --output <path>      Save results to file.")
-		fmt.Println("    --token <string>     ipinfo.io API token.")
-		fmt.Println("    --abuseipdb <string> AbuseIPDB API key.")
+		fmt.Println("    --logfile, -f <path> (Required) Log file to analyze.")
+		fmt.Println("    --output, -o <path>    Save results to file.")
+		fmt.Println("    --token, -t <string>   ipinfo.io API token.")
+		fmt.Println("    --abuseipdb, -a <string> AbuseIPDB API key.")
 		fmt.Println("\nNetwork Monitor Mode (monitors a running process):")
 		fmt.Println("  monitor")
-		fmt.Println("    --process <name>     (Required) Process name to monitor.")
-		fmt.Println("    --output <path>      Log network activity to file.")
-		fmt.Println("    --sleep <seconds>    Seconds between updates (default: 2).")
+		fmt.Println("    --process, -p <name> (Required) Process name to monitor.")
+		fmt.Println("    --output, -o <path>    Log network activity to file.")
+		fmt.Println("    --sleep, -s <seconds>  Seconds between updates (default: 2).")
 		fmt.Println("\nExamples:")
-		fmt.Println("  ./program check --logfile access.log --output report.txt")
-		fmt.Println("  sudo ./program monitor --process chrome --output net.log")
+		fmt.Println("  ./program check -f access.log -o report.txt")
+		fmt.Println("  sudo ./program monitor -p chrome -o net.log")
 		os.Exit(1)
 	}
 }
@@ -146,6 +153,7 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 	interrupted := false
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
 	defer func() {
 		if interrupted && outputFile != "" {
 			output.WriteString("\n--- ANALYSIS INTERRUPTED ---\n")
@@ -178,9 +186,10 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 		if interrupted {
 			break
 		}
+
 		if err != nil {
-			fmt.Printf(" Error: %v\n\n", err)
-			output.WriteString(fmt.Sprintf("IP: %s\n Error: %v\n\n", ip, err))
+			fmt.Printf("  Error: %v\n\n", err)
+			output.WriteString(fmt.Sprintf("IP: %s\n  Error: %v\n\n", ip, err))
 			continue
 		}
 
@@ -194,8 +203,9 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 			if interrupted {
 				break
 			}
+
 			if err != nil {
-				abuseResult := fmt.Sprintf(" AbuseIPDB Error: %v\n\n", err)
+				abuseResult := fmt.Sprintf("  AbuseIPDB Error: %v\n\n", err)
 				fmt.Print(abuseResult)
 				output.WriteString(abuseResult)
 			} else {
@@ -273,6 +283,7 @@ func runNetworkMonitor(processName, outputFile string, sleepDuration time.Durati
 			if logFileHandle != nil {
 				logFileHandle.WriteString(netOutput)
 			}
+
 			time.Sleep(sleepDuration)
 		} else {
 			time.Sleep(sleepDuration)
@@ -285,16 +296,19 @@ func runNetworkMonitor(processName, outputFile string, sleepDuration time.Durati
 func extractPublicIPs(content string) []string {
 	ipRegex := regexp.MustCompile(`\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b`)
 	matches := ipRegex.FindAllString(content, -1)
+
 	uniqueIPs := make(map[string]bool)
 	for _, ip := range matches {
 		if isPublicIP(ip) {
 			uniqueIPs[ip] = true
 		}
 	}
+
 	result := make([]string, 0, len(uniqueIPs))
 	for ip := range uniqueIPs {
 		result = append(result, ip)
 	}
+
 	return result
 }
 
@@ -303,22 +317,32 @@ func isPublicIP(ipStr string) bool {
 	if ip == nil {
 		return false
 	}
+
 	if ipStr == "0.0.0.0" || ipStr == "255.255.255.255" {
 		return false
 	}
+
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsMulticast() {
 		return false
 	}
+
 	privateRanges := []string{
-		"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16",
-		"127.0.0.0/8", "224.0.0.0/4", "240.0.0.0/4",
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"169.254.0.0/16",
+		"127.0.0.0/8",
+		"224.0.0.0/4",
+		"240.0.0.0/4",
 	}
+
 	for _, cidr := range privateRanges {
 		_, subnet, _ := net.ParseCIDR(cidr)
 		if subnet != nil && subnet.Contains(ip) {
 			return false
 		}
 	}
+
 	return true
 }
 
@@ -328,34 +352,41 @@ func checkAbuseIPDB(ip string, apiKey string) (*AbuseIPDBResponse, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Add("Key", apiKey)
 	req.Header.Add("Accept", "application/json")
+
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+
 	var abuseResp AbuseIPDBResponse
 	err = json.Unmarshal(body, &abuseResp)
 	if err != nil {
 		return nil, err
 	}
+
 	return &abuseResp, nil
 }
 
 func formatAbuseIPDBInfo(abuse *AbuseIPDBResponse) string {
 	var sb strings.Builder
-	sb.WriteString(" --- AbuseIPDB Report ---\n")
-	sb.WriteString(fmt.Sprintf(" Abuse Confidence Score: %d%%", abuse.Data.AbuseConfidenceScore))
+	sb.WriteString("  --- AbuseIPDB Report ---\n")
+	sb.WriteString(fmt.Sprintf("  Abuse Confidence Score: %d%%", abuse.Data.AbuseConfidenceScore))
+
 	if abuse.Data.AbuseConfidenceScore >= 75 {
 		sb.WriteString(" 🔴 HIGH RISK\n")
 	} else if abuse.Data.AbuseConfidenceScore >= 25 {
@@ -365,23 +396,30 @@ func formatAbuseIPDBInfo(abuse *AbuseIPDBResponse) string {
 	} else {
 		sb.WriteString(" ✅ CLEAN\n")
 	}
-	sb.WriteString(fmt.Sprintf(" Total Reports: %d\n", abuse.Data.TotalReports))
-	sb.WriteString(fmt.Sprintf(" Distinct Reporters: %d\n", abuse.Data.NumDistinctUsers))
+
+	sb.WriteString(fmt.Sprintf("  Total Reports: %d\n", abuse.Data.TotalReports))
+	sb.WriteString(fmt.Sprintf("  Distinct Reporters: %d\n", abuse.Data.NumDistinctUsers))
+
 	if abuse.Data.LastReportedAt != "" {
-		sb.WriteString(fmt.Sprintf(" Last Reported: %s\n", abuse.Data.LastReportedAt))
+		sb.WriteString(fmt.Sprintf("  Last Reported: %s\n", abuse.Data.LastReportedAt))
 	}
+
 	if abuse.Data.UsageType != "" {
-		sb.WriteString(fmt.Sprintf(" Usage Type: %s\n", abuse.Data.UsageType))
+		sb.WriteString(fmt.Sprintf("  Usage Type: %s\n", abuse.Data.UsageType))
 	}
+
 	if abuse.Data.ISP != "" {
-		sb.WriteString(fmt.Sprintf(" ISP: %s\n", abuse.Data.ISP))
+		sb.WriteString(fmt.Sprintf("  ISP: %s\n", abuse.Data.ISP))
 	}
+
 	if abuse.Data.Domain != "" {
-		sb.WriteString(fmt.Sprintf(" Domain: %s\n", abuse.Data.Domain))
+		sb.WriteString(fmt.Sprintf("  Domain: %s\n", abuse.Data.Domain))
 	}
+
 	if abuse.Data.IsWhitelisted {
-		sb.WriteString(" ✅ Whitelisted\n")
+		sb.WriteString("  ✅ Whitelisted\n")
 	}
+
 	sb.WriteString("\n")
 	return sb.String()
 }
@@ -392,37 +430,45 @@ func getIPInfo(ip string, token string) (*IPInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if token != "" {
 		req.Header.Add("Authorization", "Bearer "+token)
 	}
+
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
 	}
+
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
+
 	var info IPInfo
 	err = json.Unmarshal(body, &info)
 	if err != nil {
 		return nil, err
 	}
+
 	return &info, nil
 }
 
 func formatIPInfo(info *IPInfo) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("IP: %s\n", info.IP))
+
 	if info.Hostname != "" {
-		sb.WriteString(fmt.Sprintf(" Hostname: %s\n", info.Hostname))
+		sb.WriteString(fmt.Sprintf("  Hostname: %s\n", info.Hostname))
 	}
+
 	if info.City != "" || info.Region != "" || info.Country != "" {
 		location := []string{}
 		if info.City != "" {
@@ -434,24 +480,30 @@ func formatIPInfo(info *IPInfo) string {
 		if info.Country != "" {
 			location = append(location, info.Country)
 		}
-		sb.WriteString(fmt.Sprintf(" Location: %s\n", strings.Join(location, ", ")))
+		sb.WriteString(fmt.Sprintf("  Location: %s\n", strings.Join(location, ", ")))
 	}
+
 	if info.Org != "" {
-		sb.WriteString(fmt.Sprintf(" Organization: %s\n", info.Org))
+		sb.WriteString(fmt.Sprintf("  Organization: %s\n", info.Org))
 	}
+
 	if info.Loc != "" {
-		sb.WriteString(fmt.Sprintf(" Coordinates: %s\n", info.Loc))
+		sb.WriteString(fmt.Sprintf("  Coordinates: %s\n", info.Loc))
 	}
+
 	if info.Timezone != "" {
-		sb.WriteString(fmt.Sprintf(" Timezone: %s\n", info.Timezone))
+		sb.WriteString(fmt.Sprintf("  Timezone: %s\n", info.Timezone))
 	}
+
 	sb.WriteString(flagSuspiciousInfo(info))
 	sb.WriteString("\n")
+
 	return sb.String()
 }
 
 func flagSuspiciousInfo(info *IPInfo) string {
 	var flags []string
+
 	suspiciousOrgs := []string{"vpn", "proxy", "hosting", "cloud", "datacenter", "data center", "digital ocean", "amazon", "aws", "google cloud", "azure", "ovh", "hetzner", "linode", "vultr"}
 	orgLower := strings.ToLower(info.Org)
 	for _, suspicious := range suspiciousOrgs {
@@ -460,6 +512,7 @@ func flagSuspiciousInfo(info *IPInfo) string {
 			break
 		}
 	}
+
 	suspiciousCountries := []string{"RU", "CN", "KP", "IR"}
 	for _, country := range suspiciousCountries {
 		if info.Country == country {
@@ -467,9 +520,11 @@ func flagSuspiciousInfo(info *IPInfo) string {
 			break
 		}
 	}
+
 	if len(flags) > 0 {
-		return " 🚩 Flags: " + strings.Join(flags, ", ") + "\n"
+		return "  🚩 Flags: " + strings.Join(flags, ", ") + "\n"
 	}
+
 	return ""
 }
 
@@ -477,11 +532,13 @@ func isAdmin() bool {
 	if runtime.GOOS != "windows" {
 		return true
 	}
+
 	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-NonInteractive", "-Command", "([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)")
 	output, err := cmd.Output()
 	if err != nil {
 		return false
 	}
+
 	result := strings.TrimSpace(string(output))
 	return result == "True"
 }
@@ -492,11 +549,14 @@ func elevateToAdmin() {
 		fmt.Printf("Error getting executable path: %v\n", err)
 		os.Exit(1)
 	}
+
 	args := strings.Join(os.Args[1:], " ")
 	psCmd := fmt.Sprintf("Start-Process -FilePath '%s' -ArgumentList '%s' -Verb RunAs", exe, args)
+
 	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-NonInteractive", "-Command", psCmd)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+
 	err = cmd.Run()
 	if err != nil {
 		fmt.Printf("Failed to elevate privileges: %v\n", err)
@@ -507,6 +567,7 @@ func elevateToAdmin() {
 
 func getProcessIDs(processName string) []string {
 	var pids []string
+
 	if runtime.GOOS == "windows" {
 		psCmd := fmt.Sprintf("(Get-Process -Name '%s' -ErrorAction SilentlyContinue).Id", processName)
 		cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-NonInteractive", "-Command", psCmd)
@@ -514,6 +575,7 @@ func getProcessIDs(processName string) []string {
 		if err != nil {
 			return pids
 		}
+
 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
@@ -527,6 +589,7 @@ func getProcessIDs(processName string) []string {
 		if err != nil {
 			return pids
 		}
+
 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
@@ -535,6 +598,7 @@ func getProcessIDs(processName string) []string {
 			}
 		}
 	}
+
 	return pids
 }
 
@@ -555,11 +619,13 @@ func filterWindowsNetstat(pids []string) string {
 	pidList := strings.Join(pids, "|")
 	pattern := fmt.Sprintf(" (%s)$|^^\\s{4,}", pidList)
 	psCmd := fmt.Sprintf("NETSTAT.EXE -anob | Select-String -Pattern '%s'", pattern)
+
 	cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-NonInteractive", "-Command", psCmd)
 	output, err := cmd.Output()
 	if err != nil {
 		return ""
 	}
+
 	return string(output)
 }
 
@@ -569,15 +635,19 @@ func filterLinuxNetstat(pids []string) string {
 	if err != nil {
 		return ""
 	}
+
 	lines := strings.Split(string(output), "\n")
 	var filteredLines []string
+
 	pidPatterns := make([]*regexp.Regexp, 0)
 	for _, pid := range pids {
 		pattern := regexp.MustCompile(fmt.Sprintf(`\b%s(/|$)`, regexp.QuoteMeta(pid)))
 		pidPatterns = append(pidPatterns, pattern)
 	}
+
 	indentPattern := regexp.MustCompile(`^^\s{4,}`)
 	lastMatched := false
+
 	for _, line := range lines {
 		matched := false
 		for _, pattern := range pidPatterns {
@@ -586,19 +656,24 @@ func filterLinuxNetstat(pids []string) string {
 				break
 			}
 		}
+
 		if !matched && lastMatched && indentPattern.MatchString(line) {
 			matched = true
 		}
+
 		if matched {
 			filteredLines = append(filteredLines, line)
 		}
+
 		lastMatched = matched
 	}
+
 	return strings.Join(filteredLines, "\n") + "\n"
 }
 
 func filterMacOSLsof(pids []string) string {
 	var allOutput strings.Builder
+
 	for _, pid := range pids {
 		cmd := exec.Command("lsof", "-i", "-n", "-P", "-p", pid)
 		output, err := cmd.Output()
@@ -607,20 +682,24 @@ func filterMacOSLsof(pids []string) string {
 		}
 		allOutput.WriteString(string(output))
 	}
+
 	result := allOutput.String()
 	if result == "" {
 		return "No network connections found for specified PIDs\n"
 	}
+
 	return result
 }
 
 func clearScreen() {
 	var cmd *exec.Cmd
+
 	if runtime.GOOS == "windows" {
 		cmd = exec.Command("cmd", "/c", "cls")
 	} else {
 		cmd = exec.Command("clear")
 	}
+
 	cmd.Stdout = os.Stdout
 	cmd.Run()
 }
