@@ -87,7 +87,7 @@ func main() {
 			monitorCmd.PrintDefaults()
 			os.Exit(1)
 		}
-		// FIXED: Removed the duplicate line
+		
 		runNetworkMonitor(*processName, *outputFile, time.Duration(*sleepSeconds)*time.Second)
 	} else {
 		// Default case: print usage
@@ -782,3 +782,4 @@ func clearScreen() {
 	cmd.Stdout = os.Stdout
 	cmd.Run()
 }
+
