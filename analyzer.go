@@ -71,25 +71,6 @@ func main() {
 		}
 		runIPAnalyzer(*logFile, *outputFile, *ipInfoToken, *abuseIPDBKey)
 
-	// } else if len(os.Args) > 1 && os.Args[1] == "mon" {
-	// 	// 'mon' subcommand
-	// 	monitorCmd := flag.NewFlagSet("mon", flag.ExitOnError)
-	// 	processName := monitorCmd.String("process", "", "Process name to monitor (required).")
-	// 	monitorCmd.StringVar(processName, "p", "", "Process name to monitor (required). (shorthand)")
-	// 	outputFile := monitorCmd.String("output", "", "File to save output to.")
-	// 	monitorCmd.StringVar(outputFile, "o", "", "File to save output to. (shorthand)")
-	// 	sleepSeconds := monitorCmd.Int("sleep", 2, "Seconds to wait between updates.")
-	// 	monitorCmd.IntVar(sleepSeconds, "s", 2, "Seconds to wait between updates. (shorthand)")
-	// 	monitorCmd.Parse(os.Args[2:])
-
-	// 	if *processName == "" {
-	// 		fmt.Println("Error: --process is required.")
-	// 		monitorCmd.PrintDefaults()
-	// 		os.Exit(1)
-	// 	}
-		
-	// 	runNetworkMonitor(*processName, *outputFile, time.Duration(*sleepSeconds)*time.Second)
-
 		} else if len(os.Args) > 1 && os.Args[1] == "mon" {
     // 'mon' subcommand
     monitorCmd := flag.NewFlagSet("mon", flag.ExitOnError)
@@ -148,6 +129,7 @@ func main() {
 	}
 }
 
+
 func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 	// Read the log file
 	content, err := os.ReadFile(logFile)
@@ -163,6 +145,18 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 		os.Exit(0)
 	}
 
+	// Setup signal handling
+	interrupted := false
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		fmt.Println("\n\n⚠️ Ctrl+C detected - stopping after current IP analysis...")
+		interrupted = true
+	}()
+
+	// Display initial info
 	fmt.Printf("Found %d unique public IP addresses\n", len(ips))
 	if outputFile != "" {
 		fmt.Printf("Results will be saved to: %s\n", outputFile)
@@ -170,9 +164,6 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 	fmt.Println("Press Ctrl+C at any time to stop and save partial results")
 	fmt.Println(strings.Repeat("=", 80))
 	fmt.Println()
-
-	// Flush stdout to ensure message is displayed
-	os.Stdout.Sync()
 
 	// Prepare output
 	var output strings.Builder
@@ -184,32 +175,9 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 	}
 	output.WriteString(strings.Repeat("=", 80) + "\n\n")
 
-	// Setup signal handler with defer for cleanup
-	interrupted := false
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	defer func() {
-		if interrupted && outputFile != "" {
-			output.WriteString("\n--- ANALYSIS INTERRUPTED ---\n")
-			err := os.WriteFile(outputFile, []byte(output.String()), 0644)
-			if err != nil {
-				fmt.Printf("Error writing output file: %v\n", err)
-			} else {
-				fmt.Printf("Partial results saved to: %s\n", outputFile)
-			}
-		}
-	}()
-
-	// Handle interrupt in goroutine
-	go func() {
-		<-sigChan
-		fmt.Println("\n\n⚠️ Ctrl+C detected - stopping after current IP check...")
-		interrupted = true
-	}()
-
 	// Query each IP
 	for i, ip := range ips {
+		// Single interrupt check per loop iteration
 		if interrupted {
 			break
 		}
@@ -217,28 +185,29 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 		fmt.Printf("[%d/%d] Checking %s...\n", i+1, len(ips), ip)
 		os.Stdout.Sync()
 
+		// Query ipinfo.io
 		info, err := getIPInfo(ip, apiToken)
-		if interrupted {
-			break
-		}
-
 		if err != nil {
-			fmt.Printf("  Error: %v\n\n", err)
-			output.WriteString(fmt.Sprintf("IP: %s\n  Error: %v\n\n", ip, err))
+			errMsg := fmt.Sprintf("IP: %s\n  ipinfo.io Error: %v\n\n", ip, err)
+			fmt.Print(errMsg)
+			output.WriteString(errMsg)
+			
+			// Rate limit even on error
+			if i < len(ips)-1 {
+				time.Sleep(500 * time.Millisecond)
+			}
 			continue
 		}
 
+		// Format and display ipinfo results
 		result := formatIPInfo(info)
 		fmt.Print(result)
 		os.Stdout.Sync()
 		output.WriteString(result)
 
-		if abuseIPDBKey != "" && !interrupted {
+		// Query AbuseIPDB if enabled
+		if abuseIPDBKey != "" {
 			abuseData, err := checkAbuseIPDB(ip, abuseIPDBKey)
-			if interrupted {
-				break
-			}
-
 			if err != nil {
 				abuseResult := fmt.Sprintf("  AbuseIPDB Error: %v\n\n", err)
 				fmt.Print(abuseResult)
@@ -251,24 +220,27 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 			}
 		}
 
-		if i < len(ips)-1 && !interrupted {
-			for j := 0; j < 5; j++ {
-				if interrupted {
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
+		// Rate limiting between IPs
+		if i < len(ips)-1 {
+			time.Sleep(500 * time.Millisecond)
 		}
 	}
 
-	// Save complete results if not interrupted
-	if !interrupted && outputFile != "" {
+	// Save results (partial or complete)
+	if outputFile != "" {
+		if interrupted {
+			output.WriteString("\n--- ANALYSIS INTERRUPTED ---\n")
+		}
 		err := os.WriteFile(outputFile, []byte(output.String()), 0644)
 		if err != nil {
 			fmt.Printf("Error writing output file: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("\nResults saved to: %s\n", outputFile)
+		if interrupted {
+			fmt.Printf("\nPartial results saved to: %s\n", outputFile)
+		} else {
+			fmt.Printf("\nResults saved to: %s\n", outputFile)
+		}
 	}
 
 	if interrupted {
@@ -276,58 +248,6 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 	}
 }
 
-// func runNetworkMonitor(processName, outputFile string, sleepDuration time.Duration) {
-//     // Check privileges based on OS
-//     if runtime.GOOS == "windows" && !isAdmin() {
-//         elevateToAdmin()
-//         return
-//     }
-//     if (runtime.GOOS == "linux" || runtime.GOOS == "darwin") && os.Geteuid() != 0 {
-//         fmt.Printf("This program requires root privileges on %s.\n", runtime.GOOS)
-//         fmt.Println("Please run with: sudo ./program monitor --process <process_name>")
-//         os.Exit(1)
-//     }
-
-//     // Open log file if specified
-//     var logFileHandle *os.File
-//     var err error
-//     if outputFile != "" {
-//         logFileHandle, err = os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-//         if err != nil {
-//             fmt.Printf("Error opening log file: %v\n", err)
-//             os.Exit(1)
-//         }
-//         defer logFileHandle.Close()
-//         fmt.Printf("Logging to: %s\n", outputFile)
-//     }
-
-//     for {
-//         pids := getProcessIDs(processName)
-//         if len(pids) > 0 {
-//             clearScreen()
-
-//             // Move timestamp generation here
-//             timestamp := time.Now().Format("2006-01-02 15:04:05")
-//             separator := strings.Repeat("-", 80)
-//             output := fmt.Sprintf("\n%s\n[%s] PIDs: %s\n\n", separator, timestamp, strings.Join(pids, ", "))
-
-//             fmt.Print(output)
-//             if logFileHandle != nil {
-//                 logFileHandle.WriteString(output)
-//             }
-
-//             netOutput := filterNetworkOutput(pids)
-//             fmt.Print(netOutput)
-//             if logFileHandle != nil {
-//                 logFileHandle.WriteString(netOutput)
-//             }
-
-//             time.Sleep(sleepDuration)
-//         } else {
-//             time.Sleep(sleepDuration)
-//         }
-//     }
-// }
 
 func runNetworkMonitor(processName string, monitorAll bool, outputFile string, sleepDuration time.Duration) {
 	// ... (privilege and log file checks remain the same) ...
