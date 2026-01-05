@@ -71,24 +71,54 @@ func main() {
 		}
 		runIPAnalyzer(*logFile, *outputFile, *ipInfoToken, *abuseIPDBKey)
 
-	} else if len(os.Args) > 1 && os.Args[1] == "mon" {
-		// 'mon' subcommand
-		monitorCmd := flag.NewFlagSet("mon", flag.ExitOnError)
-		processName := monitorCmd.String("process", "", "Process name to monitor (required).")
-		monitorCmd.StringVar(processName, "p", "", "Process name to monitor (required). (shorthand)")
-		outputFile := monitorCmd.String("output", "", "File to save output to.")
-		monitorCmd.StringVar(outputFile, "o", "", "File to save output to. (shorthand)")
-		sleepSeconds := monitorCmd.Int("sleep", 2, "Seconds to wait between updates.")
-		monitorCmd.IntVar(sleepSeconds, "s", 2, "Seconds to wait between updates. (shorthand)")
-		monitorCmd.Parse(os.Args[2:])
+	// } else if len(os.Args) > 1 && os.Args[1] == "mon" {
+	// 	// 'mon' subcommand
+	// 	monitorCmd := flag.NewFlagSet("mon", flag.ExitOnError)
+	// 	processName := monitorCmd.String("process", "", "Process name to monitor (required).")
+	// 	monitorCmd.StringVar(processName, "p", "", "Process name to monitor (required). (shorthand)")
+	// 	outputFile := monitorCmd.String("output", "", "File to save output to.")
+	// 	monitorCmd.StringVar(outputFile, "o", "", "File to save output to. (shorthand)")
+	// 	sleepSeconds := monitorCmd.Int("sleep", 2, "Seconds to wait between updates.")
+	// 	monitorCmd.IntVar(sleepSeconds, "s", 2, "Seconds to wait between updates. (shorthand)")
+	// 	monitorCmd.Parse(os.Args[2:])
 
-		if *processName == "" {
-			fmt.Println("Error: --process is required.")
-			monitorCmd.PrintDefaults()
-			os.Exit(1)
-		}
+	// 	if *processName == "" {
+	// 		fmt.Println("Error: --process is required.")
+	// 		monitorCmd.PrintDefaults()
+	// 		os.Exit(1)
+	// 	}
 		
-		runNetworkMonitor(*processName, *outputFile, time.Duration(*sleepSeconds)*time.Second)
+	// 	runNetworkMonitor(*processName, *outputFile, time.Duration(*sleepSeconds)*time.Second)
+
+		} else if len(os.Args) > 1 && os.Args[1] == "mon" {
+    // 'mon' subcommand
+    monitorCmd := flag.NewFlagSet("mon", flag.ExitOnError)
+    processName := monitorCmd.String("process", "", "Process name to monitor.")
+    monitorCmd.StringVar(processName, "p", "", "Process name to monitor. (shorthand)")
+    
+    // --- NEW: Add a boolean flag for -all and --all ---
+    monitorAll := monitorCmd.Bool("all", false, "Monitor all running processes.")
+
+    outputFile := monitorCmd.String("output", "", "File to save output to.")
+    monitorCmd.StringVar(outputFile, "o", "", "File to save output to. (shorthand)")
+    sleepSeconds := monitorCmd.Int("sleep", 2, "Seconds to wait between updates.")
+    monitorCmd.IntVar(sleepSeconds, "s", 2, "Seconds to wait between updates. (shorthand)")
+    monitorCmd.Parse(os.Args[2:])
+
+    // --- NEW: Validation for mutually exclusive flags ---
+    if *processName != "" && *monitorAll {
+        fmt.Println("Error: You cannot specify both --process and --all flags.")
+        monitorCmd.PrintDefaults()
+        os.Exit(1)
+    }
+    if *processName == "" && !*monitorAll {
+        fmt.Println("Error: You must specify either --process or --all.")
+        monitorCmd.PrintDefaults()
+        os.Exit(1)
+    }
+
+    runNetworkMonitor(*processName, *monitorAll, *outputFile, time.Duration(*sleepSeconds)*time.Second)
+
 	} else {
 		// Default case: print usage
 		fmt.Println("This tool has two modes of operation. Use a subcommand to select one.")
@@ -98,11 +128,12 @@ func main() {
 		
 		fmt.Println("\nNetwork Monitor Mode (monitors a running process):")
 		fmt.Println(" monitor")
-		fmt.Println(" --process, -p <name> (Required) Process name to monitor.")
+		fmt.Println(" --process, -p <name> (Required) Process name to monitor, or '--all'/'-all' for all processes. (Warning!!!!, a lot of data)")
 		fmt.Println(" --output, -o <path> Log network activity to file.")
 		fmt.Println(" --sleep, -s <seconds> Seconds between updates (default: 2).")
 		fmt.Println("\nExample:")
 		fmt.Println("  ./program mon -p chrome -o net.log")
+		fmt.Println("  ./program mon --all -s 5")
 				
 		fmt.Println("\nIP Analyzer Mode (checks IPs in a log file):")
 		fmt.Println("  check")
@@ -298,7 +329,7 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 //     }
 // }
 
-func runNetworkMonitor(processName, outputFile string, sleepDuration time.Duration) {
+func runNetworkMonitor(processName string, monitorAll bool, outputFile string, sleepDuration time.Duration) {
 	// ... (privilege and log file checks remain the same) ...
 	if runtime.GOOS == "windows" && !isAdmin() {
 		elevateToAdmin()
@@ -323,7 +354,16 @@ func runNetworkMonitor(processName, outputFile string, sleepDuration time.Durati
 	}
 
 	for {
-		pids := getProcessIDs(processName)
+		
+		var targetName string
+		if monitorAll {
+			targetName = "-all"
+		} else {
+			targetName = processName
+		}
+
+		pids := getProcessIDs(targetName)
+
 		if len(pids) > 0 {
 			// --- The Change is Here ---
 			// We will run the slow network command in a background goroutine.
@@ -644,9 +684,81 @@ func elevateToAdmin() {
 	}
 }
 
+// func getProcessIDs(processName string) []string {
+// 	var pids []string
+
+// 	if runtime.GOOS == "windows" {
+// 		psCmd := fmt.Sprintf("(Get-Process -Name '%s' -ErrorAction SilentlyContinue).Id", processName)
+// 		cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-NonInteractive", "-Command", psCmd)
+// 		output, err := cmd.Output()
+// 		if err != nil {
+// 			return pids
+// 		}
+
+// 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+// 		for _, line := range lines {
+// 			line = strings.TrimSpace(line)
+// 			if line != "" {
+// 				pids = append(pids, line)
+// 			}
+// 		}
+// 	} else {
+// 		cmd := exec.Command("pgrep", processName)
+// 		output, err := cmd.Output()
+// 		if err != nil {
+// 			return pids
+// 		}
+
+// 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+// 		for _, line := range lines {
+// 			line = strings.TrimSpace(line)
+// 			if line != "" {
+// 				pids = append(pids, line)
+// 			}
+// 		}
+// 	}
+
+// 	return pids
+// }
+
 func getProcessIDs(processName string) []string {
 	var pids []string
 
+	// --- NEW: Handle the "-all" case ---
+	if processName == "-all" {
+		if runtime.GOOS == "windows" {
+			// On Windows, Get-Process with no name returns all processes
+			psCmd := "(Get-Process -ErrorAction SilentlyContinue).Id"
+			cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-NonInteractive", "-Command", psCmd)
+			output, err := cmd.Output()
+			if err == nil {
+				lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if line != "" {
+						pids = append(pids, line)
+					}
+				}
+			}
+		} else {
+			// On Linux/macOS, we can list all PIDs. A simple way is to use ps.
+			// We use ps -e to list all processes and -o pid to only show the PID column.
+			cmd := exec.Command("ps", "-e", "-o", "pid=")
+			output, err := cmd.Output()
+			if err == nil {
+				lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+				for _, line := range lines {
+					line = strings.TrimSpace(line)
+					if line != "" {
+						pids = append(pids, line)
+					}
+				}
+			}
+		}
+		return pids // Return the list of all PIDs
+	}
+
+	// --- ORIGINAL: Handle the specific process name case ---
 	if runtime.GOOS == "windows" {
 		psCmd := fmt.Sprintf("(Get-Process -Name '%s' -ErrorAction SilentlyContinue).Id", processName)
 		cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-NonInteractive", "-Command", psCmd)
@@ -654,7 +766,6 @@ func getProcessIDs(processName string) []string {
 		if err != nil {
 			return pids
 		}
-
 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
@@ -668,7 +779,6 @@ func getProcessIDs(processName string) []string {
 		if err != nil {
 			return pids
 		}
-
 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 		for _, line := range lines {
 			line = strings.TrimSpace(line)
@@ -677,9 +787,12 @@ func getProcessIDs(processName string) []string {
 			}
 		}
 	}
-
 	return pids
 }
+
+
+
+
 
 func filterNetworkOutput(pids []string) string {
 	switch runtime.GOOS {
@@ -782,4 +895,3 @@ func clearScreen() {
 	cmd.Stdout = os.Stdout
 	cmd.Run()
 }
-
