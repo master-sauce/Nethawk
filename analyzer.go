@@ -241,8 +241,61 @@ func runIPAnalyzer(logFile, outputFile, apiToken, abuseIPDBKey string) {
 	}
 }
 
+// func runNetworkMonitor(processName, outputFile string, sleepDuration time.Duration) {
+//     // Check privileges based on OS
+//     if runtime.GOOS == "windows" && !isAdmin() {
+//         elevateToAdmin()
+//         return
+//     }
+//     if (runtime.GOOS == "linux" || runtime.GOOS == "darwin") && os.Geteuid() != 0 {
+//         fmt.Printf("This program requires root privileges on %s.\n", runtime.GOOS)
+//         fmt.Println("Please run with: sudo ./program monitor --process <process_name>")
+//         os.Exit(1)
+//     }
+
+//     // Open log file if specified
+//     var logFileHandle *os.File
+//     var err error
+//     if outputFile != "" {
+//         logFileHandle, err = os.OpenFile(outputFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+//         if err != nil {
+//             fmt.Printf("Error opening log file: %v\n", err)
+//             os.Exit(1)
+//         }
+//         defer logFileHandle.Close()
+//         fmt.Printf("Logging to: %s\n", outputFile)
+//     }
+
+//     for {
+//         pids := getProcessIDs(processName)
+//         if len(pids) > 0 {
+//             clearScreen()
+
+//             // Move timestamp generation here
+//             timestamp := time.Now().Format("2006-01-02 15:04:05")
+//             separator := strings.Repeat("-", 80)
+//             output := fmt.Sprintf("\n%s\n[%s] PIDs: %s\n\n", separator, timestamp, strings.Join(pids, ", "))
+
+//             fmt.Print(output)
+//             if logFileHandle != nil {
+//                 logFileHandle.WriteString(output)
+//             }
+
+//             netOutput := filterNetworkOutput(pids)
+//             fmt.Print(netOutput)
+//             if logFileHandle != nil {
+//                 logFileHandle.WriteString(netOutput)
+//             }
+
+//             time.Sleep(sleepDuration)
+//         } else {
+//             time.Sleep(sleepDuration)
+//         }
+//     }
+// }
+
 func runNetworkMonitor(processName, outputFile string, sleepDuration time.Duration) {
-	// Check privileges based on OS
+	// ... (privilege and log file checks remain the same) ...
 	if runtime.GOOS == "windows" && !isAdmin() {
 		elevateToAdmin()
 		return
@@ -253,7 +306,6 @@ func runNetworkMonitor(processName, outputFile string, sleepDuration time.Durati
 		os.Exit(1)
 	}
 
-	// Open log file if specified
 	var logFileHandle *os.File
 	var err error
 	if outputFile != "" {
@@ -269,27 +321,50 @@ func runNetworkMonitor(processName, outputFile string, sleepDuration time.Durati
 	for {
 		pids := getProcessIDs(processName)
 		if len(pids) > 0 {
+			// --- The Change is Here ---
+			// We will run the slow network command in a background goroutine.
+
+			// A channel to receive the result from the goroutine
+			resultChan := make(chan string, 1) // Buffered channel of size 1
+
+			// Start the work in the background
+			go func() {
+				resultChan <- filterNetworkOutput(pids)
+			}()
+
+			// Now, we wait for our sleep duration
+			time.Sleep(sleepDuration)
+
+			// After sleeping, clear the screen and print the timestamp
 			clearScreen()
 			timestamp := time.Now().Format("2006-01-02 15:04:05")
 			separator := strings.Repeat("-", 80)
-			output := fmt.Sprintf("\n%s\n[%s] PIDs: %s\n\n", separator, timestamp, strings.Join(pids, ", "))
-			fmt.Print(output)
+			header := fmt.Sprintf("\n%s\n[%s] PIDs: %s\n\n", separator, timestamp, strings.Join(pids, ", "))
+			
+			fmt.Print(header)
 			if logFileHandle != nil {
-				logFileHandle.WriteString(output)
+				logFileHandle.WriteString(header)
 			}
 
-			netOutput := filterNetworkOutput(pids)
+			// Now, we wait for the network data to be ready.
+			// If the goroutine finished while we were sleeping, we get the result immediately.
+			// If it's still running, we wait here until it's done.
+			netOutput := <-resultChan
+
 			fmt.Print(netOutput)
 			if logFileHandle != nil {
 				logFileHandle.WriteString(netOutput)
 			}
-
-			time.Sleep(sleepDuration)
 		} else {
+			// If process not found, just sleep
 			time.Sleep(sleepDuration)
 		}
 	}
 }
+
+
+
+
 
 // --- Helper functions (unchanged from previous versions) ---
 
