@@ -93,11 +93,11 @@ func main() {
 		// Default case: print usage
 		fmt.Println("This tool has two modes of operation. Use a subcommand to select one.")
 		fmt.Println("\nUsage:")
-		fmt.Println("  program monitor [flags]")
-		fmt.Println("  program check [flags]")
+		fmt.Println("  program mon [flags]")
+		fmt.Println("  program chk [flags]")
 		
 		fmt.Println("\nNetwork Monitor Mode (monitors a running process):")
-		fmt.Println(" mon")
+		fmt.Println(" monitor")
 		fmt.Println(" --process, -p <name> (Required) Process name to monitor.")
 		fmt.Println(" --output, -o <path> Log network activity to file.")
 		fmt.Println(" --sleep, -s <seconds> Seconds between updates (default: 2).")
@@ -782,4 +782,3 @@ func clearScreen() {
 	cmd.Stdout = os.Stdout
 	cmd.Run()
 }
-
