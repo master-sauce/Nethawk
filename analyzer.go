@@ -51,9 +51,9 @@ type AbuseIPDBResponse struct {
 
 func main() {
 	// Use a subcommand structure
-	if len(os.Args) > 1 && os.Args[1] == "check" {
-		// 'check' subcommand
-		checkCmd := flag.NewFlagSet("check", flag.ExitOnError)
+	if len(os.Args) > 1 && os.Args[1] == "chk" {
+		// 'chk' subcommand
+		checkCmd := flag.NewFlagSet("chk", flag.ExitOnError)
 		logFile := checkCmd.String("logfile", "", "Log file to analyze (required).")
 		checkCmd.StringVar(logFile, "f", "", "Log file to analyze (required). (shorthand)")
 		outputFile := checkCmd.String("output", "", "File to save output to.")
@@ -69,11 +69,11 @@ func main() {
 			checkCmd.PrintDefaults()
 			os.Exit(1)
 		}
-
 		runIPAnalyzer(*logFile, *outputFile, *ipInfoToken, *abuseIPDBKey)
-	} else if len(os.Args) > 1 && os.Args[1] == "monitor" {
-		// 'monitor' subcommand
-		monitorCmd := flag.NewFlagSet("monitor", flag.ExitOnError)
+
+	} else if len(os.Args) > 1 && os.Args[1] == "mon" {
+		// 'mon' subcommand
+		monitorCmd := flag.NewFlagSet("mon", flag.ExitOnError)
 		processName := monitorCmd.String("process", "", "Process name to monitor (required).")
 		monitorCmd.StringVar(processName, "p", "", "Process name to monitor (required). (shorthand)")
 		outputFile := monitorCmd.String("output", "", "File to save output to.")
@@ -87,28 +87,32 @@ func main() {
 			monitorCmd.PrintDefaults()
 			os.Exit(1)
 		}
-
+		// FIXED: Removed the duplicate line
 		runNetworkMonitor(*processName, *outputFile, time.Duration(*sleepSeconds)*time.Second)
 	} else {
 		// Default case: print usage
 		fmt.Println("This tool has two modes of operation. Use a subcommand to select one.")
 		fmt.Println("\nUsage:")
-		fmt.Println("  program check [flags]")
 		fmt.Println("  program monitor [flags]")
+		fmt.Println("  program check [flags]")
+		
+		fmt.Println("\nNetwork Monitor Mode (monitors a running process):")
+		fmt.Println(" mon")
+		fmt.Println(" --process, -p <name> (Required) Process name to monitor.")
+		fmt.Println(" --output, -o <path> Log network activity to file.")
+		fmt.Println(" --sleep, -s <seconds> Seconds between updates (default: 2).")
+		fmt.Println("\nExample:")
+		fmt.Println("  ./program mon -p chrome -o net.log")
+				
 		fmt.Println("\nIP Analyzer Mode (checks IPs in a log file):")
 		fmt.Println("  check")
 		fmt.Println("    --logfile, -f <path> (Required) Log file to analyze.")
 		fmt.Println("    --output, -o <path>    Save results to file.")
 		fmt.Println("    --token, -t <string>   ipinfo.io API token.")
 		fmt.Println("    --abuseipdb, -a <string> AbuseIPDB API key.")
-		fmt.Println("\nNetwork Monitor Mode (monitors a running process):")
-		fmt.Println("  monitor")
-		fmt.Println("    --process, -p <name> (Required) Process name to monitor.")
-		fmt.Println("    --output, -o <path>    Log network activity to file.")
-		fmt.Println("    --sleep, -s <seconds>  Seconds between updates (default: 2).")
-		fmt.Println("\nExamples:")
+		
+		fmt.Println("\nExample:")
 		fmt.Println("  ./program check -f access.log -o report.txt")
-		fmt.Println("  sudo ./program monitor -p chrome -o net.log")
 		os.Exit(1)
 	}
 }
