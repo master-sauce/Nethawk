@@ -604,42 +604,7 @@ func elevateToAdmin() {
 	}
 }
 
-// func getProcessIDs(processName string) []string {
-// 	var pids []string
 
-// 	if runtime.GOOS == "windows" {
-// 		psCmd := fmt.Sprintf("(Get-Process -Name '%s' -ErrorAction SilentlyContinue).Id", processName)
-// 		cmd := exec.Command("powershell", "-ExecutionPolicy", "Bypass", "-NoProfile", "-NonInteractive", "-Command", psCmd)
-// 		output, err := cmd.Output()
-// 		if err != nil {
-// 			return pids
-// 		}
-
-// 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-// 		for _, line := range lines {
-// 			line = strings.TrimSpace(line)
-// 			if line != "" {
-// 				pids = append(pids, line)
-// 			}
-// 		}
-// 	} else {
-// 		cmd := exec.Command("pgrep", processName)
-// 		output, err := cmd.Output()
-// 		if err != nil {
-// 			return pids
-// 		}
-
-// 		lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-// 		for _, line := range lines {
-// 			line = strings.TrimSpace(line)
-// 			if line != "" {
-// 				pids = append(pids, line)
-// 			}
-// 		}
-// 	}
-
-// 	return pids
-// }
 
 func getProcessIDs(processName string) []string {
 	var pids []string
