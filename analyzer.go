@@ -112,7 +112,7 @@ func main() {
 		fmt.Println("    --abuseipdb, -a <string> AbuseIPDB API key.")
 		
 		fmt.Println("\nExample:")
-		fmt.Println("  ./program check -f access.log -o report.txt")
+		fmt.Println("  ./program chk -f access.log -o report.txt")
 		os.Exit(1)
 	}
 }
@@ -782,3 +782,4 @@ func clearScreen() {
 	cmd.Stdout = os.Stdout
 	cmd.Run()
 }
+
