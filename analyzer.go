@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -60,16 +61,38 @@ func main() {
 		checkCmd.StringVar(outputFile, "o", "", "File to save output to. (shorthand)")
 		ipInfoToken := checkCmd.String("token", "", "API token for ipinfo.io.")
 		checkCmd.StringVar(ipInfoToken, "t", "", "API token for ipinfo.io. (shorthand)")
-		abuseIPDBKey := checkCmd.String("abuseipdb", "", "API key for AbuseIPDB.")
-		checkCmd.StringVar(abuseIPDBKey, "a", "", "API key for AbuseIPDB. (shorthand)")
+		abuseIPDBKey := checkCmd.String("abuseipdb", "", "API key for AbuseIPDB or path to file containing the key.")
+		checkCmd.StringVar(abuseIPDBKey, "a", "", "API key for AbuseIPDB or path to file containing the key. (shorthand)")
 		checkCmd.Parse(os.Args[2:])
+
+		// --- NEW: Check if abuseIPDBKey is a file path ---	
+		finalAbuseKey := *abuseIPDBKey
+		if _, err := os.Stat(*abuseIPDBKey); err == nil {
+			// It is a file, read the first line
+			file, err := os.Open(*abuseIPDBKey)
+			if err != nil {
+				fmt.Printf("Error opening keyfile: %v\n", err)
+				os.Exit(1)
+			}
+			defer file.Close()
+
+			scanner := bufio.NewScanner(file)
+			if scanner.Scan() {
+				finalAbuseKey = scanner.Text()
+			}
+			if err := scanner.Err(); err != nil {
+				fmt.Printf("Error reading keyfile: %v\n", err)
+				os.Exit(1)
+			}
+}
 
 		if *logFile == "" {
 			fmt.Println("Error: --logfile is required.")
 			checkCmd.PrintDefaults()
 			os.Exit(1)
 		}
-		runIPAnalyzer(*logFile, *outputFile, *ipInfoToken, *abuseIPDBKey)
+		// In main(), inside the 'chk' block:
+		runIPAnalyzer(*logFile, *outputFile, *ipInfoToken, finalAbuseKey)
 
 		} else if len(os.Args) > 1 && os.Args[1] == "mon" {
     // 'mon' subcommand
