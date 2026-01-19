@@ -20,5 +20,7 @@ Security research and threat hunting
 Written in Go for minimal resource usage and cross-platform compatibility.
  
 do ./Nethawk to display usage.
+
 to compile download go and run in terminal: go build Nethawk.go 
+
 (sudo or admin are needed to run this this program)
