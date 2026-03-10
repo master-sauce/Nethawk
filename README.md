@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/master-sauce/Nethawk/main/install.s
 irm https://raw.githubusercontent.com/master-sauce/Nethawk/main/install.ps1 | iex
 
 
-build from source:
+# build from source:
 
 to build it yourself download go, cd to the dir with Nethawk.go and run in terminal: go build Nethawk.go 
 
