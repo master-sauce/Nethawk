@@ -1,9 +1,10 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-    Nethawk installer for Windows
+    Nethawk installer/uninstaller for Windows
 .DESCRIPTION
     Downloads Nethawk.exe from GitHub and adds it to your user PATH.
+    Run again to uninstall.
 .EXAMPLE
     irm https://raw.githubusercontent.com/master-sauce/Nethawk/main/install.ps1 | iex
 #>
@@ -16,6 +17,7 @@ $BinaryName = "nethawk"
 $ExeName    = "Nethawk.exe"
 $RawBase    = "https://raw.githubusercontent.com/$Repo/main"
 $InstallDir = Join-Path $env:USERPROFILE ".local\bin\nethawk"
+$Destination = Join-Path $InstallDir "$BinaryName.exe"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 function Write-Info    { param($msg) Write-Host "[nethawk] $msg" -ForegroundColor Cyan }
@@ -29,6 +31,66 @@ Write-Host "  Nethawk Installer" -ForegroundColor Cyan
 Write-Host "  ─────────────────────────────────────" -ForegroundColor DarkGray
 Write-Host ""
 
+# ── Uninstall function ────────────────────────────────────────────────────────
+function Uninstall-Nethawk {
+    Write-Host ""
+    Write-Info "Uninstalling Nethawk..."
+
+    # Remove binary
+    if (Test-Path $Destination) {
+        Remove-Item -Force $Destination
+        Write-Success "Removed binary: $Destination"
+    } else {
+        # Try go install location
+        $GoCmd = Get-Command go -ErrorAction SilentlyContinue
+        if ($GoCmd) {
+            $GoPath = (go env GOPATH)
+            $GoBin = Join-Path $GoPath "bin\$BinaryName.exe"
+            if (Test-Path $GoBin) {
+                Remove-Item -Force $GoBin
+                Write-Success "Removed binary: $GoBin"
+                $InstallDir = Join-Path $GoPath "bin"
+            }
+        } else {
+            Write-Warn "Binary not found — nothing to remove."
+        }
+    }
+
+    # Remove empty install directory if it exists
+    if ((Test-Path $InstallDir) -and (-not (Get-ChildItem $InstallDir))) {
+        Remove-Item -Force -Recurse $InstallDir
+        Write-Info "Removed empty install directory: $InstallDir"
+    }
+
+    # Remove from user PATH
+    $CurrentPath = [System.Environment]::GetEnvironmentVariable("Path", "User")
+    $PathEntries = $CurrentPath -split ";" | Where-Object { $_ -ne "" -and $_ -ne $InstallDir }
+    $NewPath = $PathEntries -join ";"
+    [System.Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
+    Write-Success "Removed $InstallDir from user PATH."
+
+    # Also remove from current session
+    $env:Path = ($env:Path -split ";" | Where-Object { $_ -ne $InstallDir }) -join ";"
+
+    Write-Host ""
+    Write-Success "✓ Nethawk has been uninstalled. Open a new terminal to clear your PATH."
+    Write-Host ""
+    exit 0
+}
+
+# ── Toggle: if already installed, prompt to uninstall ────────────────────────
+if (Test-Path $Destination) {
+    Write-Host ""
+    Write-Warn "Nethawk is already installed at: $Destination"
+    $Confirm = Read-Host "  Uninstall it? [y/N]"
+    if ($Confirm -match "^[Yy]$") {
+        Uninstall-Nethawk
+    } else {
+        Write-Info "Cancelled. No changes made."
+        exit 0
+    }
+}
+
 # ── Create install directory ──────────────────────────────────────────────────
 if (-not (Test-Path $InstallDir)) {
     New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
@@ -36,28 +98,26 @@ if (-not (Test-Path $InstallDir)) {
 }
 
 # ── Download binary ───────────────────────────────────────────────────────────
-$DownloadUrl  = "$RawBase/$ExeName"
-$Destination  = Join-Path $InstallDir "$BinaryName.exe"
+$DownloadUrl = "$RawBase/$ExeName"
 
 Write-Info "Downloading $ExeName from GitHub..."
 Write-Info "URL: $DownloadUrl"
 
 try {
-    $ProgressPreference = 'SilentlyContinue'   # speeds up Invoke-WebRequest significantly
+    $ProgressPreference = 'SilentlyContinue'
     Invoke-WebRequest -Uri $DownloadUrl -OutFile $Destination -UseBasicParsing
     Write-Success "Downloaded to: $Destination"
 } catch {
-    # Fallback: try go install if Go is available
+    # Fallback: go install
     Write-Warn "Direct download failed. Trying 'go install' as fallback..."
     if (Get-Command go -ErrorAction SilentlyContinue) {
         Write-Info "Running: go install github.com/$Repo@latest"
         go install "github.com/${Repo}@latest"
         $GoPath = (go env GOPATH)
-        $GoInstallDir = Join-Path $GoPath "bin"
-        Write-Success "Installed via 'go install' to: $GoInstallDir"
-        $InstallDir = $GoInstallDir
+        $InstallDir = Join-Path $GoPath "bin"
+        Write-Success "Installed via 'go install' to: $InstallDir"
     } else {
-        Write-Fail "Download failed and Go is not installed.`nInstall Go from https://go.dev/dl/ and retry, or check your internet connection."
+        Write-Fail "Download failed and Go is not installed.`nInstall Go from https://go.dev/dl/ and retry."
     }
 }
 
@@ -73,10 +133,9 @@ if ($PathEntries -contains $InstallDir) {
     $NewPath = ($PathEntries + $InstallDir) -join ";"
     [System.Environment]::SetEnvironmentVariable("Path", $NewPath, "User")
     Write-Success "Added $InstallDir to your user PATH."
-    Write-Warn "Note: New terminals will pick up the updated PATH automatically."
 }
 
-# ── Update PATH for current session ──────────────────────────────────────────
+# Update current session PATH too
 $env:Path = "$env:Path;$InstallDir"
 
 # ── Verify ────────────────────────────────────────────────────────────────────
@@ -86,10 +145,10 @@ if ($Found) {
     Write-Success "✓ '$BinaryName' is ready to use!"
 } else {
     Write-Warn "'$BinaryName' not found in current session PATH."
-    Write-Host "  Restart your terminal, then try:" -ForegroundColor DarkGray
-    Write-Host "  > $BinaryName --help" -ForegroundColor White
+    Write-Host "  Restart your terminal, then try: $BinaryName --help" -ForegroundColor DarkGray
 }
 
 Write-Host ""
-Write-Host "  Run: $BinaryName --help" -ForegroundColor Cyan
+Write-Host "  Run:  $BinaryName --help" -ForegroundColor Cyan
+Write-Host "  Tip:  Run this script again to uninstall." -ForegroundColor DarkGray
 Write-Host ""
