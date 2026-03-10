@@ -2,6 +2,24 @@
 
 Nethawk is an open-source security tool for real-time network monitoring and IP intelligence gathering.
 
+installation:
+
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/master-sauce/Nethawk/main/install.sh | bash
+
+# Windows
+irm https://raw.githubusercontent.com/master-sauce/Nethawk/main/install.ps1 | iex
+
+
+build from source:
+
+to build it yourself download go, cd to the dir with Nethawk.go and run in terminal: go build Nethawk.go 
+
+do ./Nethawk to display usage.
+
+(sudo or admin are needed to run this this program)
+
+
 What Makes NetHawk Different:
 🪶 Single Executable - No installation, dependencies, or configuration. Download and run on Windows, Linux, or macOS.
 📅 Timestamped Logging - Every connection capture includes timestamps, critical for forensic timelines.
@@ -19,8 +37,3 @@ Log file threat assessment
 Security research and threat hunting
 Written in Go for minimal resource usage and cross-platform compatibility.
 
-to compile download go and run in terminal: go build Nethawk.go 
-
-do ./Nethawk to display usage.
-
-(sudo or admin are needed to run this this program)
