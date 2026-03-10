@@ -4,15 +4,13 @@ Nethawk is an open-source security tool for real-time network monitoring and IP 
 
 installation:
 
+(run the commnads again to Uninstall)
+
 # Linux / macOS
 curl -fsSL https://raw.githubusercontent.com/master-sauce/Nethawk/main/install.sh | bash
 
 # Windows
 irm https://raw.githubusercontent.com/master-sauce/Nethawk/main/install.ps1 | iex
-
-
-run the commnads again to Uninstall.
-
 
 # build from source:
 
