@@ -20,7 +20,7 @@ do ./Nethawk to display usage.
 (sudo or admin are needed to run this this program)
 
 
-What Makes NetHawk Different:
+# What Makes NetHawk Different:
 🪶 Single Executable - No installation, dependencies, or configuration. Download and run on Windows, Linux, or macOS.
 📅 Timestamped Logging - Every connection capture includes timestamps, critical for forensic timelines.
 🧠 Intelligent Filtering - Automatically identifies all PIDs for target processes by name, checks for any PID that has connections made and filters TCP/UDP connections with full port visibility
