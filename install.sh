@@ -13,17 +13,88 @@ success() { echo -e "${GREEN}[nethawk]${NC} $*"; }
 warn()    { echo -e "${YELLOW}[nethawk]${NC} $*"; }
 error()   { echo -e "${RED}[nethawk] ERROR:${NC} $*" >&2; exit 1; }
 
-# ── Detect OS / arch ──────────────────────────────────────────────────────────
+# ── Detect OS ─────────────────────────────────────────────────────────────────
 OS="$(uname -s)"
-ARCH="$(uname -m)"
-
 case "$OS" in
-  Linux*)   PLATFORM="linux" ;;
-  Darwin*)  PLATFORM="macos" ;;
-  *)        error "Unsupported OS: $OS" ;;
+  Linux*)  PLATFORM="linux" ;;
+  Darwin*) PLATFORM="macos" ;;
+  *)       error "Unsupported OS: $OS" ;;
 esac
 
-# ── Installation logic ────────────────────────────────────────────────────────
+BINARY_PATH="$INSTALL_DIR/$BINARY_NAME"
+
+# ── Uninstall ─────────────────────────────────────────────────────────────────
+uninstall() {
+  echo ""
+  info "Uninstalling Nethawk..."
+
+  # Remove binary (direct install)
+  if [ -f "$BINARY_PATH" ]; then
+    rm -f "$BINARY_PATH"
+    success "Removed binary: $BINARY_PATH"
+  else
+    # Try go install location
+    if command -v go &>/dev/null; then
+      GO_BIN="$(go env GOPATH)/bin/$BINARY_NAME"
+      if [ -f "$GO_BIN" ]; then
+        rm -f "$GO_BIN"
+        success "Removed binary: $GO_BIN"
+      fi
+    else
+      warn "Binary not found — nothing to remove."
+    fi
+  fi
+
+  # Remove PATH entries from shell RC files
+  remove_from_rc() {
+    local rc="$1"
+    if [ -f "$rc" ] && grep -qF "Nethawk installer" "$rc"; then
+      sed -i.bak '/# Added by Nethawk installer/d' "$rc"
+      sed -i.bak "\|${INSTALL_DIR}|d" "$rc"
+      rm -f "${rc}.bak"
+      success "Removed PATH entry from $rc"
+    fi
+  }
+
+  remove_from_rc "$HOME/.bashrc"
+  remove_from_rc "$HOME/.bash_profile"
+  remove_from_rc "$HOME/.zshrc"
+  remove_from_rc "$HOME/.profile"
+
+  # Fish shell
+  FISH_CFG="$HOME/.config/fish/config.fish"
+  if [ -f "$FISH_CFG" ] && grep -qF "$INSTALL_DIR" "$FISH_CFG"; then
+    sed -i.bak "\|${INSTALL_DIR}|d" "$FISH_CFG"
+    rm -f "${FISH_CFG}.bak"
+    success "Removed PATH entry from $FISH_CFG"
+  fi
+
+  echo ""
+  success "✓ Nethawk has been uninstalled. Open a new terminal to clear your PATH."
+  echo ""
+  exit 0
+}
+
+# ── Toggle: if already installed, prompt to uninstall ─────────────────────────
+if [ -f "$BINARY_PATH" ]; then
+  echo ""
+  warn "Nethawk is already installed at $BINARY_PATH"
+  printf "  ${YELLOW}Uninstall it? [y/N]:${NC} "
+  read -r CONFIRM
+  if [[ "$CONFIRM" =~ ^[Yy]$ ]]; then
+    uninstall
+  else
+    info "Cancelled. No changes made."
+    exit 0
+  fi
+fi
+
+# ── Install ───────────────────────────────────────────────────────────────────
+echo ""
+echo -e "  ${CYAN}Nethawk Installer${NC}"
+echo -e "  ─────────────────────────────────────"
+echo ""
+
 install_via_download() {
   local url="$1"
   info "Downloading binary from GitHub..."
@@ -50,18 +121,14 @@ install_via_go() {
     error "Go is not installed. Install it from https://go.dev/dl/ then re-run this script."
   fi
   go install "github.com/${REPO}@latest"
-  success "Installed via 'go install'."
-  # go installs to $GOPATH/bin or $HOME/go/bin — make sure that's on PATH too
   INSTALL_DIR="$(go env GOPATH)/bin"
+  success "Installed via 'go install' to $INSTALL_DIR"
 }
 
 case "$PLATFORM" in
-  linux)
-    install_via_download "${RAW_BASE}/Nethawk_linux"
-    ;;
+  linux)  install_via_download "${RAW_BASE}/Nethawk_linux" ;;
   macos)
-    # No macOS binary in repo yet — fall back to go install
-    warn "No macOS binary found in repo. Falling back to 'go install'."
+    warn "No macOS binary in repo yet. Falling back to 'go install'."
     install_via_go
     ;;
 esac
@@ -76,17 +143,16 @@ add_to_path() {
     return
   fi
 
-  echo "" >> "$shell_rc"
-  echo "# Added by Nethawk installer" >> "$shell_rc"
-  echo "$export_line" >> "$shell_rc"
+  printf "\n# Added by Nethawk installer\n%s\n" "$export_line" >> "$shell_rc"
   info "Added $INSTALL_DIR to PATH in $shell_rc"
 }
 
 SHELL_NAME="$(basename "${SHELL:-/bin/bash}")"
 case "$SHELL_NAME" in
-  zsh)   add_to_path "$HOME/.zshrc" ;;
-  bash)  add_to_path "$HOME/.bashrc"; [ -f "$HOME/.bash_profile" ] && add_to_path "$HOME/.bash_profile" ;;
-  fish)  
+  zsh)  add_to_path "$HOME/.zshrc" ;;
+  bash) add_to_path "$HOME/.bashrc"
+        [ -f "$HOME/.bash_profile" ] && add_to_path "$HOME/.bash_profile" ;;
+  fish)
     mkdir -p "$HOME/.config/fish"
     FISH_LINE="set -gx PATH \$PATH $INSTALL_DIR"
     if ! grep -qF "$INSTALL_DIR" "$HOME/.config/fish/config.fish" 2>/dev/null; then
@@ -94,10 +160,9 @@ case "$SHELL_NAME" in
       info "Added $INSTALL_DIR to PATH in fish config."
     fi
     ;;
-  *)     add_to_path "$HOME/.profile" ;;
+  *) add_to_path "$HOME/.profile" ;;
 esac
 
-# ── Also export for current session ──────────────────────────────────────────
 export PATH="$PATH:$INSTALL_DIR"
 
 # ── Verify ────────────────────────────────────────────────────────────────────
@@ -111,5 +176,6 @@ else
 fi
 
 echo ""
-echo -e "  ${CYAN}Run:${NC} $BINARY_NAME --help"
+echo -e "  ${CYAN}Run:${NC}  $BINARY_NAME --help"
+echo -e "  ${CYAN}Tip:${NC}  Run this script again to uninstall."
 echo ""
